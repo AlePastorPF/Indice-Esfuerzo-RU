@@ -382,6 +382,7 @@ async function buildDataFromXlsx(url){
   const activities=[], activityIdx=new Map();
   const periodos=[], periodoIdx=new Map();
   const cleaned=[];
+  let skippedNoSeason = 0;
 
   for(const r of rawRows){
     const jugador = r[0];
@@ -391,11 +392,17 @@ async function buildDataFromXlsx(url){
     const puestoRaw = r[5];
     const temporada = r[42];
     const etiqueta = r[41];
+    if(temporada===null || temporada===undefined || temporada===''){
+      skippedNoSeason++;
+      continue; // sin Temporada no se puede normalizar el Índice ERU de esta fila
+    }
     const durMin = r[38] || 0;
-    const distExp = r[13] || 0;
-    const rhie = r[18] || 0;
+    const distExpPerMin = r[12] || 0; // columna propia "Dist Exp / min"
+    const rhieTotal = r[18] || 0;
+    const contTotal = r[25] || 0;
+    const rhiePerMin = durMin > 0 ? rhieTotal / durMin : 0;
+    const contPerMin = durMin > 0 ? contTotal / durMin : 0;
     const big = r[21] || 0;
-    const cont = r[25] || 0;
 
     const puestoResolved = resolvePuesto(jugador, puestoRaw);
     let group, puestoDisplay;
@@ -418,8 +425,8 @@ async function buildDataFromXlsx(url){
       periodo, peridx:periodoIdx.get(periodo),
       puesto:puestoDisplay, group,
       temporada, esPartido: etiqueta==='Partido',
-      dur: Math.round(durMin*10)/10, dist: Math.round(distExp*10)/10,
-      rhie: Math.round(rhie*10)/10, big: Math.round(big*10)/10, cont: Math.round(cont*10)/10,
+      dur: Math.round(durMin*10)/10, dist: Math.round(distExpPerMin*100)/100,
+      rhie: Math.round(rhiePerMin*100)/100, big: Math.round(big*10)/10, cont: Math.round(contPerMin*100)/100,
     });
   }
   if(!cleaned.length) throw new Error('No se encontraron filas de datos válidas en la hoja "GPS"');
@@ -497,6 +504,7 @@ async function buildDataFromXlsx(url){
     seasonStats: seasonStatsOut, seasonMax: seasonMaxOut,
     records,
     logos: STATIC_LOGOS,
+    skippedNoSeason,
   };
 }
 
@@ -522,16 +530,19 @@ const GROUP_COLORS = ['#5c4a3a','#3f5b52','#8a6d3b','#34506e','#6e4560'];
 const GROUP_SHAPES = ['rect','circle','triangle','rectRot','star'];
 const METRIC_DEFS = [
   {key:'dur', label:'Duración', unit:'min'},
-  {key:'dist', label:'Dist Exp', unit:'m'},
-  {key:'rhie', label:'RHIE', unit:''},
+  {key:'dist', label:'Dist Exp/min', unit:' m/min'},
+  {key:'rhie', label:'RHIE/min', unit:'/min'},
   {key:'big', label:'BiG', unit:'s', invert:true},
-  {key:'cont', label:'Contactos', unit:''},
+  {key:'cont', label:'Contactos/min', unit:'/min'},
 ];
 const R = {P:0,POS:1,GRP:2,ACT:3,SEA:4,DUR:5,DIST:6,RHIE:7,BIG:8,CONT:9,ERU:10,PER:11};
 
 document.getElementById('clubCrest').src = DATA.logos['SIC'];
 document.getElementById('dataRange').innerHTML =
-  'Temporadas <b>' + DATA.seasons.join(' · ') + '</b><br>' + DATA.records.length.toLocaleString('es-AR') + ' registros analizados';
+  'Temporadas <b>' + DATA.seasons.join(' · ') + '</b><br>' + DATA.records.length.toLocaleString('es-AR') + ' registros analizados'
+  + (DATA.skippedNoSeason>0
+      ? '<br><span style="color:#a33;">'+DATA.skippedNoSeason.toLocaleString('es-AR')+' fila(s) sin Temporada excluidas</span>'
+      : '');
 
 function pctOf(rec){
   const smax = DATA.seasonMax[String(DATA.seasons[rec[R.SEA]])];
@@ -917,8 +928,8 @@ function renderChart(){
                 playerName(r)+' · '+posName(r),
                 actName(r)+' · '+seasonName(r),
                 'Índice ERU: '+r[R.ERU].toFixed(1)+' ('+pctOf(r)+'% del mejor partido)',
-                'Duración: '+r[R.DUR]+' min · Dist Exp: '+r[R.DIST]+' m',
-                'RHIE: '+r[R.RHIE]+' · BiG: '+r[R.BIG]+'s · Contactos: '+r[R.CONT]
+                'Duración: '+r[R.DUR]+' min · Dist Exp/min: '+r[R.DIST]+' m/min',
+                'RHIE/min: '+r[R.RHIE]+' · BiG: '+r[R.BIG]+'s · Contactos/min: '+r[R.CONT]
               ];
             }
           }
@@ -943,10 +954,10 @@ const COLS = [
   {key:'periodo', label:'Periodo', get:r=>periodoName(r), sort:(r)=>periodoName(r)},
   {key:'temporada', label:'Temp.', get:r=>seasonName(r), sort:(r)=>seasonName(r), num:true},
   {key:'dur', label:'Duración', get:r=>r[R.DUR], sort:(r)=>r[R.DUR], num:true},
-  {key:'dist', label:'Dist Exp', get:r=>r[R.DIST], sort:(r)=>r[R.DIST], num:true},
-  {key:'rhie', label:'RHIE', get:r=>r[R.RHIE], sort:(r)=>r[R.RHIE], num:true},
+  {key:'dist', label:'Dist Exp/min', get:r=>r[R.DIST], sort:(r)=>r[R.DIST], num:true},
+  {key:'rhie', label:'RHIE/min', get:r=>r[R.RHIE], sort:(r)=>r[R.RHIE], num:true},
   {key:'big', label:'BiG (s)', get:r=>r[R.BIG], sort:(r)=>r[R.BIG], num:true},
-  {key:'cont', label:'Contactos', get:r=>r[R.CONT], sort:(r)=>r[R.CONT], num:true},
+  {key:'cont', label:'Contactos/min', get:r=>r[R.CONT], sort:(r)=>r[R.CONT], num:true},
   {key:'eru', label:'Índice ERU', get:null, sort:(r)=>r[R.ERU], num:true},
   {key:'pct', label:'% máx.', get:r=>pctOf(r)+'%', sort:(r)=>pctOf(r), num:true},
 ];
@@ -1017,6 +1028,7 @@ const dq = [
   'Se excluyeron 41 filas con jugadores de prueba/placeholder (nombres tipo "XXXXA", "XXX") sin identidad real.',
   'La columna "Periodo" distingue el registro total de una sesión ("Session") de sus bloques internos (entrada en calor, unidades, tiempos de partido, drills, etc.). Por defecto el dashboard muestra solo "Session" para evitar contar dos veces la misma sesión o partido; el filtro "Periodo" permite explorar los bloques internos si se necesita ese detalle.',
   'La normalización de las 5 métricas (mínimo/máximo por temporada) se calculó sobre todos los registros "Session" (entrenamientos y partidos), para que la escala 0–100 de cada métrica sea estable. En cambio, el "% del máximo" que se muestra en tarjetas, tabla y tooltip se calcula únicamente contra el Índice ERU del partido con mejor prestación de esa temporada — no contra entrenamientos — porque es la referencia competitiva más relevante.',
+  'Tres de las cinco métricas del Índice ERU se calculan por minuto de participación (no en valor absoluto): "Dist Exp/min" toma la columna propia "Dist Exp / min" de la planilla; "RHIE/min" se calcula dividiendo "RHIE Total Bouts" por la Duración (min) de ese mismo registro; "Contactos/min" se calcula dividiendo "Contactos" por esa misma Duración. Así se compara la intensidad de cada jugador independientemente de cuánto tiempo haya estado en cancha. Duración y BiG se mantienen en su unidad original (minutos y segundos respectivamente).',
   'La columna "RHIE" del índice corresponde a "RHIE Total Bouts" (cantidad de bloques de esfuerzo repetido de alta intensidad); las variantes "Efforts per bout" no se incluyeron por no estar contempladas como métrica propia en la consigna.',
   '"BiG" corresponde a la columna "# BiG" y está expresada en segundos (tiempo hasta volver a la exigencia de juego tras una acción). Se trató como variable inversa: un valor más bajo (ej. 2,25s) representa mejor prestación que uno más alto (ej. 4,56s).',
   'La categoría "Puesto: Utilidad" y los registros sin puesto asignado se reasignaron al puesto más frecuente de ese mismo jugador en el resto del dataset. Dos jugadores no tenían ningún otro puesto registrado; para ellos se asumió el grupo "Backs Internos" como referencia neutral, indicado explícitamente donde aparecen.',
