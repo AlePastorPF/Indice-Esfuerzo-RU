@@ -426,7 +426,7 @@ async function buildDataFromXlsx(url){
       puesto:puestoDisplay, group,
       temporada, esPartido: etiqueta==='Partido',
       dur: Math.round(durMin*10)/10, dist: Math.round(distExpPerMin*100)/100,
-      rhie: Math.round(rhiePerMin*100)/100, big: Math.round(big*10)/10, cont: Math.round(contPerMin*100)/100,
+      rhie: Math.round(rhiePerMin*100)/100, big: Math.round(big*10)/10, cont: Math.round(contPerMin*1000)/1000,
     });
   }
   if(!cleaned.length) throw new Error('No se encontraron filas de datos válidas en la hoja "GPS"');
